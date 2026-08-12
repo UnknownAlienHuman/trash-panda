@@ -26,3 +26,7 @@ Copy `TrashPanda` to `World of Warcraft/_retail_/Interface/AddOns/`, enable it, 
 ## Settings and status
 
 The Settings module registers options for print summary, Faster Looting, locale, and debug mode. The checked-in TODO records a completed diagnostic investigation of `Util/Format.lua`; it contains no remaining implementation checkbox. The current open verification item is an in-game smoke test of merchant selling, Shift skip, queue recovery, Faster Looting, and settings persistence.
+
+## License
+
+Licensed under the [MIT License](LICENSE). Bundled third-party components remain under their own notices.
