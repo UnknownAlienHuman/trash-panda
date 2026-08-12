@@ -1,10 +1,11 @@
 # Code index
 
-| Area | Files | Responsibility |
+| Area | Files | Exact anchors |
 | --- | --- | --- |
-| Namespace and startup | `Core/Namespace.lua`, `Core/Bootstrap.lua`, `Init.lua` | shared `TP` namespace, event routing, slash commands, entry point |
-| Configuration and UI | `Core/Config.lua`, `Core/Settings.lua` | defaults/SavedVariables and Settings registration |
-| Shared services | `Core/Locale.lua`, `Core/Logger.lua`, `Util/Format.lua` | strings, logging, money/amount formatting |
-| Features | `Feature/AutoSell.lua`, `Feature/FasterLoot.lua` | sell queue and optional faster-looting path |
+| Namespace/startup | [`Core/Namespace.lua`](Core/Namespace.lua), [`Core/Bootstrap.lua`](Core/Bootstrap.lua), [`Init.lua`](Init.lua) | `TP.Bootstrap:Init`, `OnSlash`, event-frame `OnEvent` |
+| DB/settings | [`Core/Config.lua`](Core/Config.lua), [`Core/Settings.lua`](Core/Settings.lua) | `TP.Config:Load/Get/Set`, `TP.Settings:Init`, `OnSettingChanged` |
+| Shared services | [`Core/Locale.lua`](Core/Locale.lua), [`Core/Logger.lua`](Core/Logger.lua), [`Util/Format.lua`](Util/Format.lua) | `PickLocale`, `TP.Logger:Log`, `TP.Format:FormatAmount` |
+| Auto-sell | [`Feature/AutoSell.lua`](Feature/AutoSell.lua) | `IsSellablePoor`, `TP.AutoSell:OnMerchantShow`, `_BuildQueue`, `_Tick`, `_Finalize` |
+| Faster loot | [`Feature/FasterLoot.lua`](Feature/FasterLoot.lua) | `OnLootReady`, `TP.FasterLoot:Init` |
 
-Primary anchors: `TP.AutoSell:_BuildQueue`, `TP.AutoSell:_Tick`, `IsSellablePoor`, bootstrap event routing, and `SlashCmdList["TRASHPANDA"]`.
+The only persistent contract is `TrashPandaDB`; feature runtime state is rebuilt at addon load.

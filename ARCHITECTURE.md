@@ -1,5 +1,7 @@
 # Architecture
 
-`Init.lua` enters through the namespace assembled in `Core/`. `Core/Bootstrap.lua` initializes configuration, registers the addon event frame and `/tp` aliases, then routes merchant and money events to features. `Feature/AutoSell.lua` builds and drains the sell queue; `Feature/FasterLoot.lua` separately handles its loot-ready path. `Util/Format.lua` formats user-facing amounts, while Locale, Logger, Config, and Settings provide shared services.
+The TOC loads namespace/locale/config/logger/format, then `Feature/AutoSell.lua` and `Feature/FasterLoot.lua`, then Settings/Bootstrap, and finally [`Init.lua`](Init.lua). `Init.lua` calls `TP.Bootstrap:Init()`; Bootstrap is the sole event/slash router.
 
-The TOC loads namespace and support modules before features, settings, bootstrap, and `Init.lua`. This establishes the shared `TP` table before feature registration.
+`MERCHANT_SHOW` -> `TP.AutoSell:OnMerchantShow` -> `_BuildQueue` -> 0.06 s sell ticker (`_Tick`) -> money-stability wait -> `_Finalize` and `TP.Format:FormatAmount`. `LOOT_READY` is an independent optional FasterLoot path gated by `TrashPandaDB.fasterLoot`. Settings callbacks write the same shallow DB and update locale/logger where needed.
+
+The TOC release version is 0.2.8, but `TP.version` in Namespace is 0.2.3; this is a documented metadata inconsistency, not a separate runtime module.

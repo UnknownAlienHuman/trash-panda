@@ -1,6 +1,6 @@
 # TrashPanda (AutoSell Gray)
 
-**Version:** 0.2.8
+**Version:** 0.2.8 (TOC release metadata; `Core/Namespace.lua` still exposes runtime constant `0.2.3`)
 **Interface:** 120001, 120005
 **SavedVariables:** `TrashPandaDB`
 **CurseForge:** [Trash Panda](https://www.curseforge.com/wow/addons/trash-panda)
@@ -10,7 +10,7 @@ Ultra-light addon: automatically sells **poor (gray)** items when you open a mer
 ## Behavior
 - Triggers on `MERCHANT_SHOW`
 - Sells items with `quality == Enum.ItemQuality.Poor` and `hasNoValue == false`
-- Hold **Shift** while opening a merchant to skip once (configurable)
+- Hold **Shift** while opening a merchant to skip once (`bypassShift` defaults to true; it is not yet exposed in Settings)
 - Uses a tiny sell queue (ticker) to avoid edge-cases with temporarily locked slots
 - Prints exact money delta (GetMoney before/after), then: "<amount>. <comment>"
 
@@ -18,6 +18,8 @@ Ultra-light addon: automatically sells **poor (gray)** items when you open a mer
 - `/tp status`
 - `/tp debug on|off`
 - `/tp log`
+
+The checked-in slash handler does not implement `/tp on|off`; locale help text mentioning those verbs is stale.
 
 ## Install
 
