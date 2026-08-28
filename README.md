@@ -1,6 +1,6 @@
 # TrashPanda (AutoSell Gray)
 
-**Version:** 0.3.1  
+**Version:** 0.3.2  
 **Target:** World of Warcraft Retail / Midnight 12.1.0  
 **Interface:** 120100  
 **Author:** Neomorph  
@@ -56,6 +56,13 @@ World of Warcraft/_retail_/Interface/AddOns/
 
 Enable the addon and reload the UI.
 
+## 0.3.2 update
+
+- Fixed the total merchant-session timeout when the monotonic client clock begins at exactly zero.
+- Added a deterministic zero-origin timeout regression.
+- Added localization-key and signed-money formatting contract tests.
+- Updated CI and release verification to execute every committed Lua test before packaging.
+
 ## 0.3.1 update
 
 - Fixed `/tp off` and the Settings toggle so disabling AutoSell cancels an in-progress sale instead of allowing the queued items to continue selling.
@@ -69,9 +76,9 @@ Enable the addon and reload the UI.
 
 ## Verification
 
-The committed CI workflow is designed to parse every TOC-loaded file with `luac5.1`, run the deterministic merchant/loot harness with `lua5.1`, and build a runtime-only addon archive. The local deterministic harness currently passes all 15 scenarios under the available Lua 5.3-compatible interpreter, and the packager's inclusion/exclusion behavior has been exercised locally.
+The committed workflows parse every TOC-loaded file with `luac5.1`, execute every `tests/*.lua` regression with `lua5.1`, and build a runtime-only addon archive. The packaging script derives the release version from the TOC and includes only the TOC, TOC-loaded Lua files, and `LICENSE` beneath one `TrashPanda/` directory.
 
-GitHub has not created a workflow run for this repository, so an actual Lua 5.1 CI pass and CI-built ZIP artifact are **not yet verified**. Repository Actions enablement is tracked in [issue #4](https://github.com/UnknownAlienHuman/trash-panda/issues/4). Runtime validation in the live WoW client remains tracked separately in [issue #1](https://github.com/UnknownAlienHuman/trash-panda/issues/1).
+Runtime validation in the live WoW client remains tracked separately in [issue #1](https://github.com/UnknownAlienHuman/trash-panda/issues/1).
 
 ## Development
 
