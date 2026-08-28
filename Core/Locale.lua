@@ -1,22 +1,31 @@
 -- Core/Locale.lua
--- Ultra-light localization (only user-facing chat strings).
+-- Lightweight localization for chat and Settings labels.
 local _, TP = ...
-
-TP.L = TP.L or {}
 
 local LOCALES = {
     enUS = {
         GOLD = "Gold",
         ON = "ON",
         OFF = "OFF",
-        CMD_HELP = "Commands: /tp status | debug on|off | log",
-        STATUS_FMT = "status: debug=%s",
+        CMD_HELP = "Commands: /tp on | off | status | debug on|off | log",
+        STATUS_FMT = "status: autosell=%s debug=%s",
+        AUTOSELL_ON = "autosell ON",
+        AUTOSELL_OFF = "autosell OFF",
         DEBUG_ON = "debug ON",
         DEBUG_OFF = "debug OFF",
         UNKNOWN_CMD = "Unknown command. /tp help",
         SETTINGS_CATEGORY = "TrashPanda",
+        AUTOSELL_LABEL = "Auto-sell gray items",
+        AUTOSELL_TOOLTIP = "Automatically sell poor-quality items when a merchant opens.",
+        PRINT_SUMMARY_LABEL = "Print sale summary",
+        PRINT_SUMMARY_TOOLTIP = "Print the money change after junk selling completes.",
+        SHIFT_BYPASS_LABEL = "Hold Shift to skip once",
+        SHIFT_BYPASS_TOOLTIP = "Do not auto-sell when Shift is held while opening a merchant.",
         FAST_LOOT_LABEL = "Faster Looting",
+        FAST_LOOT_TOOLTIP = "Loot immediately when the game reports that auto-loot is active.",
         LANGUAGE_LABEL = "Language",
+        DEBUG_LABEL = "Debug mode",
+        DEBUG_TOOLTIP = "Keep a small diagnostic log available through /tp log.",
         HUMOR_POS = {
             "Need more gold!",
             "You can build a ziggurat!",
@@ -30,7 +39,6 @@ local LOCALES = {
             "Trash done",
             "More coin, less junk",
             "Goblin-grade profits",
-        
         },
         HUMOR_NEG = {
             "Someone's been getting smacked",
@@ -39,22 +47,32 @@ local LOCALES = {
             "Repairs: critical hit",
             "Armor bills say hi",
             "Try dodging",
-        
         },
     },
 
     ruRU = {
         GOLD = "золота",
-        ON = "ON",
-        OFF = "OFF",
-        CMD_HELP = "Команды: /tp status | debug on|off | log",
-        STATUS_FMT = "статус: debug=%s",
-        DEBUG_ON = "debug ON",
-        DEBUG_OFF = "debug OFF",
+        ON = "ВКЛ",
+        OFF = "ВЫКЛ",
+        CMD_HELP = "Команды: /tp on | off | status | debug on|off | log",
+        STATUS_FMT = "статус: автопродажа=%s debug=%s",
+        AUTOSELL_ON = "автопродажа включена",
+        AUTOSELL_OFF = "автопродажа выключена",
+        DEBUG_ON = "debug включён",
+        DEBUG_OFF = "debug выключен",
         UNKNOWN_CMD = "Неизвестная команда. /tp help",
         SETTINGS_CATEGORY = "TrashPanda",
+        AUTOSELL_LABEL = "Автопродажа серых предметов",
+        AUTOSELL_TOOLTIP = "Автоматически продавать предметы низкого качества при открытии торговца.",
+        PRINT_SUMMARY_LABEL = "Показывать итог продажи",
+        PRINT_SUMMARY_TOOLTIP = "Показывать изменение количества денег после завершения продажи хлама.",
+        SHIFT_BYPASS_LABEL = "Shift: пропустить один раз",
+        SHIFT_BYPASS_TOOLTIP = "Не продавать хлам, если при открытии торговца зажат Shift.",
         FAST_LOOT_LABEL = "Быстрый сбор добычи",
+        FAST_LOOT_TOOLTIP = "Собирать добычу сразу, когда игра сообщает, что автосбор активен.",
         LANGUAGE_LABEL = "Язык",
+        DEBUG_LABEL = "Режим отладки",
+        DEBUG_TOOLTIP = "Хранить небольшой диагностический лог для команды /tp log.",
         HUMOR_POS = {
             "Надо больше золота!",
             "Можно строить зиккурат!",
@@ -68,7 +86,6 @@ local LOCALES = {
             "Хлам готов",
             "Больше монет — меньше мусора",
             "Гоблинская прибыль",
-        
         },
         HUMOR_NEG = {
             "Кто-то много огребал...",
@@ -77,21 +94,32 @@ local LOCALES = {
             "Ремонт: крит",
             "Счёт за броню пришёл",
             "Пора уклоняться",
-        
         },
     },
 
     deDE = {
         GOLD = "Gold",
-        ON = "ON",
-        OFF = "OFF",
+        ON = "AN",
+        OFF = "AUS",
         CMD_HELP = "Befehle: /tp on | off | status | debug on|off | log",
-        ENABLED = "aktiviert",
-        DISABLED = "deaktiviert",
-        STATUS_FMT = "status: enabled=%s debug=%s",
-        DEBUG_ON = "debug ON",
-        DEBUG_OFF = "debug OFF",
+        STATUS_FMT = "Status: Autoverkauf=%s Debug=%s",
+        AUTOSELL_ON = "Autoverkauf AN",
+        AUTOSELL_OFF = "Autoverkauf AUS",
+        DEBUG_ON = "Debug AN",
+        DEBUG_OFF = "Debug AUS",
         UNKNOWN_CMD = "Unbekannter Befehl. /tp help",
+        SETTINGS_CATEGORY = "TrashPanda",
+        AUTOSELL_LABEL = "Graue Gegenstände automatisch verkaufen",
+        AUTOSELL_TOOLTIP = "Verkauft Gegenstände schlechter Qualität automatisch beim Öffnen eines Händlers.",
+        PRINT_SUMMARY_LABEL = "Verkaufsübersicht anzeigen",
+        PRINT_SUMMARY_TOOLTIP = "Zeigt die Geldänderung nach dem Verkauf des Plunders an.",
+        SHIFT_BYPASS_LABEL = "Mit Shift einmal überspringen",
+        SHIFT_BYPASS_TOOLTIP = "Kein automatischer Verkauf, wenn beim Öffnen des Händlers Shift gedrückt ist.",
+        FAST_LOOT_LABEL = "Schneller plündern",
+        FAST_LOOT_TOOLTIP = "Plündert sofort, wenn das Spiel aktives automatisches Plündern meldet.",
+        LANGUAGE_LABEL = "Sprache",
+        DEBUG_LABEL = "Debugmodus",
+        DEBUG_TOOLTIP = "Speichert ein kleines Diagnoseprotokoll für /tp log.",
         HUMOR_POS = {
             "Mehr Gold!",
             "Du kannst einen Ziggurat bauen!",
@@ -105,7 +133,6 @@ local LOCALES = {
             "Schrott erledigt",
             "Mehr Münzen, weniger Schrott",
             "Goblin-Gewinn",
-        
         },
         HUMOR_NEG = {
             "Da hat jemand kassiert",
@@ -114,21 +141,32 @@ local LOCALES = {
             "Reparatur: Krit",
             "Rüstungsrechnung sagt hallo",
             "Mal ausweichen",
-        
         },
     },
 
     esES = {
         GOLD = "Oro",
-        ON = "ON",
-        OFF = "OFF",
+        ON = "SÍ",
+        OFF = "NO",
         CMD_HELP = "Comandos: /tp on | off | status | debug on|off | log",
-        ENABLED = "activado",
-        DISABLED = "desactivado",
-        STATUS_FMT = "estado: enabled=%s debug=%s",
-        DEBUG_ON = "debug ON",
-        DEBUG_OFF = "debug OFF",
+        STATUS_FMT = "estado: autoventa=%s debug=%s",
+        AUTOSELL_ON = "autoventa activada",
+        AUTOSELL_OFF = "autoventa desactivada",
+        DEBUG_ON = "debug activado",
+        DEBUG_OFF = "debug desactivado",
         UNKNOWN_CMD = "Comando desconocido. /tp help",
+        SETTINGS_CATEGORY = "TrashPanda",
+        AUTOSELL_LABEL = "Vender automáticamente objetos grises",
+        AUTOSELL_TOOLTIP = "Vende automáticamente objetos de calidad pobre al abrir un comerciante.",
+        PRINT_SUMMARY_LABEL = "Mostrar resumen de venta",
+        PRINT_SUMMARY_TOOLTIP = "Muestra el cambio de dinero al terminar la venta de chatarra.",
+        SHIFT_BYPASS_LABEL = "Mantener Shift para omitir una vez",
+        SHIFT_BYPASS_TOOLTIP = "No vende automáticamente si Shift está pulsado al abrir el comerciante.",
+        FAST_LOOT_LABEL = "Saqueo rápido",
+        FAST_LOOT_TOOLTIP = "Saquea de inmediato cuando el juego indica que el saqueo automático está activo.",
+        LANGUAGE_LABEL = "Idioma",
+        DEBUG_LABEL = "Modo de depuración",
+        DEBUG_TOOLTIP = "Guarda un pequeño registro de diagnóstico para /tp log.",
         HUMOR_POS = {
             "¡Más oro!",
             "¡Ya puedes construir un zigurat!",
@@ -142,7 +180,6 @@ local LOCALES = {
             "Basura lista",
             "Más monedas, menos chatarra",
             "Ganancia goblin",
-        
         },
         HUMOR_NEG = {
             "Alguien se llevó unos golpes...",
@@ -151,24 +188,32 @@ local LOCALES = {
             "Reparación: crítico",
             "La factura de la armadura llegó",
             "La próxima, esquiva",
-        
         },
     },
 
-    -- Same vibe for Latin American Spanish.
-    esMX = {},
-
     zhCN = {
         GOLD = "金币",
-        ON = "ON",
-        OFF = "OFF",
+        ON = "开",
+        OFF = "关",
         CMD_HELP = "命令: /tp on | off | status | debug on|off | log",
-        ENABLED = "已开启",
-        DISABLED = "已关闭",
-        STATUS_FMT = "状态: enabled=%s debug=%s",
-        DEBUG_ON = "debug ON",
-        DEBUG_OFF = "debug OFF",
-        UNKNOWN_CMD = "未知命令. /tp help",
+        STATUS_FMT = "状态: 自动出售=%s 调试=%s",
+        AUTOSELL_ON = "自动出售已开启",
+        AUTOSELL_OFF = "自动出售已关闭",
+        DEBUG_ON = "调试已开启",
+        DEBUG_OFF = "调试已关闭",
+        UNKNOWN_CMD = "未知命令。/tp help",
+        SETTINGS_CATEGORY = "TrashPanda",
+        AUTOSELL_LABEL = "自动出售灰色物品",
+        AUTOSELL_TOOLTIP = "打开商人时自动出售粗糙品质物品。",
+        PRINT_SUMMARY_LABEL = "显示出售汇总",
+        PRINT_SUMMARY_TOOLTIP = "垃圾出售完成后显示金币变化。",
+        SHIFT_BYPASS_LABEL = "按住 Shift 跳过一次",
+        SHIFT_BYPASS_TOOLTIP = "打开商人时按住 Shift 将不会自动出售。",
+        FAST_LOOT_LABEL = "快速拾取",
+        FAST_LOOT_TOOLTIP = "当游戏报告自动拾取已启用时立即拾取。",
+        LANGUAGE_LABEL = "语言",
+        DEBUG_LABEL = "调试模式",
+        DEBUG_TOOLTIP = "保留可通过 /tp log 查看的小型诊断日志。",
         HUMOR_POS = {
             "还要更多金币！",
             "可以造 Ziggurat 了！",
@@ -182,7 +227,6 @@ local LOCALES = {
             "垃圾搞定",
             "多点金币，少点破烂",
             "地精级收益",
-        
         },
         HUMOR_NEG = {
             "有人挨了不少打…",
@@ -191,21 +235,32 @@ local LOCALES = {
             "修理费：暴击",
             "护甲账单来了",
             "下次记得躲",
-        
         },
     },
 
     zhTW = {
         GOLD = "金幣",
-        ON = "ON",
-        OFF = "OFF",
+        ON = "開",
+        OFF = "關",
         CMD_HELP = "命令: /tp on | off | status | debug on|off | log",
-        ENABLED = "已開啟",
-        DISABLED = "已關閉",
-        STATUS_FMT = "狀態: enabled=%s debug=%s",
-        DEBUG_ON = "debug ON",
-        DEBUG_OFF = "debug OFF",
-        UNKNOWN_CMD = "未知命令. /tp help",
+        STATUS_FMT = "狀態: 自動出售=%s 除錯=%s",
+        AUTOSELL_ON = "自動出售已開啟",
+        AUTOSELL_OFF = "自動出售已關閉",
+        DEBUG_ON = "除錯已開啟",
+        DEBUG_OFF = "除錯已關閉",
+        UNKNOWN_CMD = "未知命令。/tp help",
+        SETTINGS_CATEGORY = "TrashPanda",
+        AUTOSELL_LABEL = "自動出售灰色物品",
+        AUTOSELL_TOOLTIP = "開啟商人時自動出售粗糙品質物品。",
+        PRINT_SUMMARY_LABEL = "顯示出售摘要",
+        PRINT_SUMMARY_TOOLTIP = "垃圾出售完成後顯示金錢變化。",
+        SHIFT_BYPASS_LABEL = "按住 Shift 略過一次",
+        SHIFT_BYPASS_TOOLTIP = "開啟商人時按住 Shift 將不會自動出售。",
+        FAST_LOOT_LABEL = "快速拾取",
+        FAST_LOOT_TOOLTIP = "遊戲回報自動拾取已啟用時立即拾取。",
+        LANGUAGE_LABEL = "語言",
+        DEBUG_LABEL = "除錯模式",
+        DEBUG_TOOLTIP = "保留可透過 /tp log 查看的小型診斷記錄。",
         HUMOR_POS = {
             "還要更多金幣！",
             "可以造 Ziggurat 了！",
@@ -219,7 +274,6 @@ local LOCALES = {
             "垃圾搞定",
             "多點金幣，少點破爛",
             "地精級收益",
-        
         },
         HUMOR_NEG = {
             "有人挨了不少打…",
@@ -228,26 +282,26 @@ local LOCALES = {
             "修理費：暴擊",
             "護甲帳單來了",
             "下次記得躲",
-        
         },
     },
 }
 
--- Inherit esMX from esES if empty.
-LOCALES.esMX = LOCALES.esMX and next(LOCALES.esMX) and LOCALES.esMX or LOCALES.esES
+-- Latin American Spanish currently shares the Spanish translation.
+LOCALES.esMX = LOCALES.esES
 
 local function PickLocale(override)
-    local loc = override or (type(GetLocale) == "function" and GetLocale()) or "enUS"
-    local L = LOCALES[loc] or LOCALES.enUS
-    -- Fallback for missing keys in non-enUS locales
-    if loc ~= "enUS" then
-        setmetatable(L, { __index = LOCALES.enUS })
+    local locale = override or (type(GetLocale) == "function" and GetLocale()) or "enUS"
+    local selected = LOCALES[locale] or LOCALES.enUS
+
+    if selected ~= LOCALES.enUS and getmetatable(selected) == nil then
+        setmetatable(selected, { __index = LOCALES.enUS })
     end
-    return L
+
+    return selected
 end
 
 TP.L = PickLocale()
 
-function TP:SetLocale(loc)
-    self.L = PickLocale(loc)
+function TP:SetLocale(locale)
+    self.L = PickLocale(locale)
 end

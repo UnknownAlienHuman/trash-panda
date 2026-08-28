@@ -1,14 +1,19 @@
 # TrashPanda agent guide
 
-## Start here
+## Current contract
 
-Read [`TrashPanda.toc`](TrashPanda.toc), then [`Core/Namespace.lua`](Core/Namespace.lua), [`Core/Bootstrap.lua`](Core/Bootstrap.lua), [`Core/Config.lua`](Core/Config.lua), and [`Feature/AutoSell.lua`](Feature/AutoSell.lua). The TOC order is the architecture: namespace/locale/config/logger/format -> features -> Settings/Bootstrap -> [`Init.lua`](Init.lua).
+- Repository: `UnknownAlienHuman/trash-panda`, branch `main`
+- Target: World of Warcraft Retail / Midnight 12.1.0
+- Interface: `120100`
+- Release: `0.3.0`
+- Author: Neomorph
+- External libraries: none
+- Shared policy: [`UnknownAlienHuman/wow-addon-engineering-kb`](https://github.com/UnknownAlienHuman/wow-addon-engineering-kb)
+- Platform snapshot used for the 0.3.0 migration: `Gethe/wow-ui-source@027d26c3406d3de2cbd2b1f67d468fe033a1bcd4`, build `12.1.0.69497`
 
-TOC release metadata is `0.2.8` (`TrashPanda.toc`, `## Version`); `Core/Namespace.lua` still exposes runtime constant `0.2.3` (see the uncertainty note below).
+Read `TrashPanda.toc`, then `ARCHITECTURE.md`, `Core/Bootstrap.lua`, `Feature/AutoSell.lua`, `Feature/FasterLoot.lua`, and `Core/Settings.lua` before changing behavior.
 
-## Load order and execution path
-
-Complete `loadedFiles` inventory (root `docs/addon-architecture.json`, in execution order):
+## Load order
 
 ```text
 Core/Namespace.lua
@@ -23,50 +28,113 @@ Core/Bootstrap.lua
 Init.lua
 ```
 
-`Init.lua` calls `TP.Bootstrap:Init()`. Bootstrap registers one frame for `ADDON_LOADED`, `MERCHANT_SHOW`, and `PLAYER_MONEY`. On the addon's `ADDON_LOADED`, it loads `TrashPandaDB` defaults, applies saved locale, initializes logger and AutoSell state, registers Settings and FasterLoot, and installs `/tp` and `/trashpanda`. `MERCHANT_SHOW` routes to `TP.AutoSell:OnMerchantShow`; `PLAYER_MONEY` feeds delayed finalization through `TP.AutoSell:OnPlayerMoney`. `FasterLoot` owns a separate `LOOT_READY` frame and only acts when `fasterLoot` is enabled.
+The TOC order is the dependency graph. `Init.lua` only calls `TP.Bootstrap:Init()`.
 
-AutoSell flow: `OnMerchantShow` (Shift bypass/re-entry/API checks) -> `_BuildQueue` scans bags 0 through reagent bag and selects poor items with value -> ticker `_Tick` sells unlocked entries with `UseContainerItem` -> `_StartWaitingForMoney` waits for money update/stability -> `_Finalize` records delta, formats chat summary and resets state.
+## AutoSell path
 
-## State and surfaces
+```text
+MERCHANT_SHOW
+  -> enabled gate
+  -> optional Shift bypass
+  -> API/re-entry gates
+  -> snapshot GetMoney
+  -> _BeginPass
+     -> _BuildQueue over player bags
+     -> poor quality + hasNoValue == false
+     -> request missing item data
+     -> paced _Tick
+        -> re-read current bag/slot
+        -> require same itemID
+        -> require poor + value + unlocked
+        -> C_Container.UseContainerItem
+     -> delayed bounded rescan/backoff
+  -> _StartWaitingForMoney
+  -> PLAYER_MONEY + stability window
+  -> _Finalize / FormatAmount / optional summary
 
-- SavedVariables: `TrashPandaDB` with `printSummary`, `bypassShift`, `debug`, `fasterLoot`, and `locale`; AutoSell runtime state/log buffer are not persisted.
-- Settings category: summary, Faster Looting, locale (`enUS`, `ruRU`, `deDE`, `esES`, `zhCN`, `zhTW`), and debug. `bypassShift` is currently a default/code path, not exposed by `Settings.lua`.
-- Slash: `/tp` or `/trashpanda`; `status`, `debug on|off`, `log`, `help`. There is no implemented `/tp on|off` despite some locale/help text mentioning it.
-- Localization: `TP.L` from [`Core/Locale.lua`](Core/Locale.lua); `esMX` inherits `esES`.
+MERCHANT_CLOSED
+  -> cancel sale/retry workers
+  -> bounded money reconciliation only
+```
 
-## Dependencies and relationships
+A queued bag/slot is never trusted as identity. Any empty, changed, unknown, non-poor, no-value, or locked location is not used. A changed sellable item may be discovered only by a later fresh scan.
 
-No TOC external dependency. Uses Blizzard merchant/container/loot/money/settings APIs. `AutoSell` uses modern `C_Container` with fallback globals and `Enum.ItemQuality.Poor`; `FasterLoot` uses `LOOT_READY`, `GetCVarBool`, `IsModifiedClick`, `GetNumLootItems`, and `LootSlot`. No checked-in addon consumes TrashPanda globals.
+## Why the native sell-all API is not used
 
-Falsification notes: there is no `COMBAT_LOG_EVENT_UNFILTERED`, Masque, CDM, or addon-wide `OnUpdate` path. Timing is handled by the AutoSell/FasterLoot timer callbacks and event frames; do not document TrashPanda as a per-frame scanner.
+`C_MerchantFrame.SellAllJunkItems()` exists in the current generated API and Blizzard's merchant button calls it. It is nevertheless not the safe TrashPanda path while [WoWUIBugs #488](https://github.com/Stanzilla/WoWUIBugs/issues/488) remains unresolved/current-build unverified: the report states that one poor-quality item without vendor value can abort the operation with “The merchant doesn't want that item” instead of being skipped.
 
-## Change routing
+Current 12.1 field code also reports one-shot incompleteness from rate limiting or initially uncached item data. TrashPanda therefore uses explicit filtering, paced calls, fresh rescans, 0.40–1.60-second backoff, a 12-pass cap, and a 3-stall cap. This is a bounded workaround, not permission to create an unbounded bag worker.
 
-- Namespace/version and shared TP table: [`Core/Namespace.lua`](Core/Namespace.lua).
-- Defaults and DB reads/writes: [`Core/Config.lua`](Core/Config.lua), then Settings callbacks in [`Core/Settings.lua`](Core/Settings.lua).
-- Event lifecycle/slash: [`Core/Bootstrap.lua`](Core/Bootstrap.lua), `TP.Bootstrap:Init`, local `OnSlash`.
-- Sell criteria/queue/tickers/money reconciliation: [`Feature/AutoSell.lua`](Feature/AutoSell.lua), `IsSellablePoor`, `TP.AutoSell:OnMerchantShow`, `_BuildQueue`, `_Tick`, `_StartWaitingForMoney`, `_Finalize`.
-- Optional loot behavior: [`Feature/FasterLoot.lua`](Feature/FasterLoot.lua), `OnLootReady`.
-- User text and language: [`Core/Locale.lua`](Core/Locale.lua); logging: [`Core/Logger.lua`](Core/Logger.lua); output formatting: [`Util/Format.lua`](Util/Format.lua).
+Do not replace the manual path merely because the native symbol exists. Re-test the exact no-value and many-item cases on the named live build, update the engineering KB issue, then simplify only when the retirement gate is met.
 
-## Invariants and risks
+## Faster Loot path
 
-- Only poor-quality, non-zero-value items are eligible. Preserve `info.quality == POOR_QUALITY` and `not info.hasNoValue` checks.
-- AutoSell is re-entry protected and must not sell while a slot is locked; retain retry cap (`MAX_LOCK_RETRIES = 20`) and timer cancellation.
-- Money finalization intentionally waits for a post-sale money change and 0.35 s stability, with a 20 s failsafe. Do not report the summary immediately after the last `UseContainerItem`.
-- `UseContainerItem` is a protected/economic action surface. Verify merchant/combat/Shift behavior and never broaden target selection silently.
-- `Settings.SetOnValueChangedCallback` updates Config and logger/locale but does not reinitialize active feature state; if adding settings, route effects explicitly.
-- Logger is a 200-entry ring buffer; `SwingBarMidnightDebuggerDB`-style unbounded persisted logs must not be introduced.
+`Feature/FasterLoot.lua` registers `LOOT_READY`. It acts only when both `TrashPandaDB.fasterLoot` and the event's documented `autoloot` payload are true. Do not recompute this state from CVars/modifier keys unless a current platform regression is demonstrated.
+
+## Configuration and commands
+
+SavedVariables:
+
+```text
+enabled
+printSummary
+bypassShift
+fasterLoot
+locale
+debug
+```
+
+Settings variables are globally unique `TRASHPANDA_*` identifiers. The second identifier supplied to `Settings.RegisterAddOnSetting` is the internal `TrashPandaDB` key.
+
+Commands:
+
+```text
+/tp on
+/tp off
+/tp status
+/tp debug on|off
+/tp log
+/tp help
+```
+
+`TP.version` must continue to come from TOC metadata through `C_AddOns.GetAddOnMetadata`; do not duplicate a handwritten runtime version constant.
+
+## Invariants
+
+- AutoSell is enabled by default and may be disabled without disabling the addon.
+- Holding Shift skips only the current merchant opening when `bypassShift` is enabled.
+- Target selection remains exactly poor quality plus `hasNoValue == false`.
+- Bag/slot, item ID, quality, value flag, and lock state are re-read immediately before every `UseContainerItem` call.
+- Merchant state comes from `MERCHANT_SHOW` / `MERCHANT_CLOSED`, not `MerchantFrame:IsShown()`.
+- Sale passes, lock retries, item-data retries, backoff, and money reconciliation are all bounded.
+- No addon-wide `OnUpdate`, global frame scan, bag-button hook, native sell-all call, or persisted raw log.
+- Logger storage remains bounded to 200 runtime entries.
+- Debug and the runtime locale selection apply immediately; already-rendered Settings labels refresh after reload. All other Settings values are read at the point of use.
+- No in-game result may be claimed from source review or offline parsing alone.
 
 ## Verification
 
-1. Verify TOC order and all file references; parse Lua.
-2. In-game `/reload`; test `/tp help`, `status`, `debug on|off`, and `log`.
-3. At a merchant, test gray item stacks, locked slots, empty queue, Shift bypass, merchant close, delayed `PLAYER_MONEY`, repair/buy delta mismatch, and 20 s failsafe.
-4. Test Settings persistence for summary, Faster Looting, locale, and debug; confirm locale fallback and chat strings.
-5. Enable Faster Looting and test `LOOT_READY` with auto-loot CVar/modifier combinations.
-6. Check no unintended sale, Lua error, protected-action/taint error, or stale ticker after reload/merchant close.
+Offline:
 
-## Uncertain or stale claims
+1. Parse every TOC-loaded Lua file as Lua 5.1-compatible syntax.
+2. Confirm every TOC path exists and load order matches this guide.
+3. Confirm Interface `120100` and version `0.3.0`.
+4. Confirm the exact point-of-use checks: `itemID`, poor quality, `hasNoValue == false`, and unlocked.
+5. Confirm `C_MerchantFrame.SellAllJunkItems` and `MerchantFrame:IsShown()` are absent from the live AutoSell path.
+6. Confirm pass/stall/lock/money workers have explicit caps and cancellation paths.
+7. Confirm all Settings IDs are prefixed `TRASHPANDA_` and all localized status strings accept two values.
 
-`TrashPanda.toc` reports version `0.2.8`, while `Core/Namespace.lua` sets `TP.version = "0.2.3"`; treat the TOC as the release version and the namespace value as a stale runtime constant until reconciled. Locale help strings mention `/tp on|off`, but `Bootstrap.lua` implements only help/status/log/debug. `README.md` previously called Shift bypass configurable; the current Settings UI does not expose `bypassShift`. Reconciliation is tracked in [GitHub issue #2](https://github.com/UnknownAlienHuman/trash-panda/issues/2).
+In client:
+
+1. Fresh login and `/reload` with only TrashPanda enabled.
+2. Test `/tp help`, `on`, `off`, `status`, `debug on|off`, and `log`.
+3. Open a merchant with no junk, one junk stack, many junk entries, Shift held, and AutoSell disabled.
+4. Put a known poor-quality no-value item beside sellable grays; confirm it remains and valued grays sell without a UI error.
+5. Move, split, merge, or replace a queued gray while the sale is running; confirm no stale slot is used.
+6. Test locked items, initially uncached item data, immediate merchant close, and rapid merchant reopen.
+7. Buy or repair near a sale and inspect the debug delta/reason.
+8. Verify Settings persistence across `/reload`, including Shift bypass and every bundled locale.
+9. Enable Faster Looting and test both `LOOT_READY autoloot=true` and `false` paths.
+10. Check for Lua errors, taint/protected-action errors, duplicate callbacks, repeated timers, and unintended item sales.
+
+Runtime validation remains tracked in GitHub issue #1 until observed on the named client build.

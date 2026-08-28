@@ -1,8 +1,8 @@
-## Interface: 120001, 120005
+## Interface: 120100
 ## Title: TrashPanda |cffffffff(AutoSell Gray)|r
 ## Notes: Ultra-light auto-sell of poor (gray) items at merchants.
 ## Author: Neomorph
-## Version: 0.2.8
+## Version: 0.3.0
 ## SavedVariables: TrashPandaDB
 
 Core/Namespace.lua

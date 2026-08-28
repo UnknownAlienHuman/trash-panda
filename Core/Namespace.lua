@@ -1,6 +1,14 @@
 -- TrashPanda
--- Minimal addon namespace file.
+-- Shared addon namespace.
 local ADDON_NAME, TP = ...
-TP = TP or {}
+
 TP.name = ADDON_NAME
-TP.version = "0.2.3"
+
+local function ReadVersion()
+    if C_AddOns and type(C_AddOns.GetAddOnMetadata) == "function" then
+        return C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version") or "dev"
+    end
+    return "dev"
+end
+
+TP.version = ReadVersion()

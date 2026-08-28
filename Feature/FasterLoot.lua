@@ -3,27 +3,27 @@ local _, TP = ...
 
 TP.FasterLoot = TP.FasterLoot or {}
 
-local function OnLootReady()
-    if not TP.Config:Get("fasterLoot") then return end
-    
-    -- Check if auto-loot is effectively active (either via CVar or modified click)
-    -- Leatrix Plus logic: if GetCVarBool("autoLootDefault") ~= IsModifiedClick("AUTOLOOTTOGGLE")
-    if GetCVarBool("autoLootDefault") ~= IsModifiedClick("AUTOLOOTTOGGLE") then
-        local numItems = GetNumLootItems()
-        if numItems > 0 then
-            for i = numItems, 1, -1 do
-                LootSlot(i)
-            end
-        end
+local function OnLootReady(autoloot)
+    if not TP.Config:Get("fasterLoot") or not autoloot then
+        return
+    end
+
+    local numItems = GetNumLootItems()
+    for index = numItems, 1, -1 do
+        LootSlot(index)
     end
 end
 
 function TP.FasterLoot:Init()
+    if self.frame then
+        return
+    end
+
     local frame = CreateFrame("Frame")
     frame:RegisterEvent("LOOT_READY")
-    frame:SetScript("OnEvent", function(_, event)
-        if event == "LOOT_READY" then
-            OnLootReady()
-        end
+    frame:SetScript("OnEvent", function(_, _, autoloot)
+        OnLootReady(autoloot)
     end)
+
+    self.frame = frame
 end

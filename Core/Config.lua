@@ -4,24 +4,27 @@ local _, TP = ...
 TP.Config = TP.Config or {}
 
 local DEFAULTS = {
+    enabled = true,
     printSummary = true,
-    bypassShift = true,  -- hold Shift to skip autosell for this vendor
+    bypassShift = true, -- hold Shift while opening a merchant to skip once
     debug = false,
     fasterLoot = false,
-    locale = nil,
 }
 
-local function ShallowCopy(src, dst)
-    for k, v in pairs(src) do
-        if dst[k] == nil then
-            dst[k] = v
+local function ApplyDefaults(src, dst)
+    for key, value in pairs(src) do
+        if dst[key] == nil then
+            dst[key] = value
         end
     end
 end
 
 function TP.Config:Load()
-    TrashPandaDB = TrashPandaDB or {}
-    ShallowCopy(DEFAULTS, TrashPandaDB)
+    if type(TrashPandaDB) ~= "table" then
+        TrashPandaDB = {}
+    end
+
+    ApplyDefaults(DEFAULTS, TrashPandaDB)
     self.db = TrashPandaDB
 end
 
@@ -30,8 +33,7 @@ function TP.Config:Get(key)
 end
 
 function TP.Config:Set(key, value)
-    if not self.db then
-        return
+    if self.db then
+        self.db[key] = value
     end
-    self.db[key] = value
 end
