@@ -2,7 +2,7 @@
 ## Title: TrashPanda |cffffffff(AutoSell Gray)|r
 ## Notes: Ultra-light auto-sell of poor (gray) items at merchants.
 ## Author: Neomorph
-## Version: 0.3.0
+## Version: 0.3.1
 ## SavedVariables: TrashPandaDB
 
 Core/Namespace.lua

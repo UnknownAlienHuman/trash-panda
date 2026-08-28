@@ -28,12 +28,17 @@ local function GetDefaultLocale()
 end
 
 local function ApplyChangedValue(key, value)
-    TP.Config:Set(key, value)
+    local applied, normalized = TP.Config:Set(key, value)
+    if not applied then
+        return
+    end
 
     if key == "locale" then
-        TP:SetLocale(value)
+        TP:SetLocale(normalized)
     elseif key == "debug" and TP.Logger then
-        TP.Logger:SetDebug(value)
+        TP.Logger:SetDebug(normalized)
+    elseif key == "enabled" and TP.AutoSell then
+        TP.AutoSell:OnEnabledChanged(normalized)
     end
 end
 
