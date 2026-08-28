@@ -18,11 +18,25 @@ local function Lower(value)
     return string.lower(value or "")
 end
 
+local function ApplyRuntimeOption(key, value)
+    if key == "enabled" and TP.AutoSell then
+        TP.AutoSell:OnEnabledChanged(value)
+    elseif key == "debug" and TP.Logger then
+        TP.Logger:SetDebug(value)
+    elseif key == "locale" then
+        TP:SetLocale(value)
+    end
+end
+
 local function SetOption(key, value)
     if TP.Settings and TP.Settings.SetValue then
         TP.Settings:SetValue(key, value)
-    else
-        TP.Config:Set(key, value)
+        return
+    end
+
+    local applied, normalized = TP.Config:Set(key, value)
+    if applied then
+        ApplyRuntimeOption(key, normalized)
     end
 end
 

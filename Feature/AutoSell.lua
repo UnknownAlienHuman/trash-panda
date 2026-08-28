@@ -12,6 +12,8 @@ local POOR_QUALITY = (Enum and Enum.ItemQuality and Enum.ItemQuality.Poor) or 0
 
 local SELL_TICK_SECONDS = 0.08
 local MAX_LOCK_RETRIES = 20
+local MAX_ACTIONS = 500
+local MAX_SESSION_SECONDS = 45.0
 
 local RETRY_BASE_SECONDS = 0.40
 local RETRY_MAX_SECONDS = 1.60
@@ -20,6 +22,7 @@ local MAX_STALLS = 3
 
 local WAIT_TICK_SECONDS = 0.10
 local WAIT_STABLE_SECONDS = 0.35
+local WAIT_NO_CHANGE_SECONDS = 2.0
 local WAIT_MAX_SECONDS = 20.0
 
 local function Now()
@@ -64,6 +67,15 @@ local function IsSellablePoor(info)
         and info.hasNoValue == false
 end
 
+local function HasRequiredAPIs()
+    return type(GetNumSlots) == "function"
+        and type(GetContainerItemInfo) == "function"
+        and type(UseContainerItem) == "function"
+        and C_Timer
+        and type(C_Timer.NewTimer) == "function"
+        and type(C_Timer.NewTicker) == "function"
+end
+
 local function RandomIndex(high)
     if type(fastrandom) == "function" then
         return fastrandom(high)
@@ -104,20 +116,25 @@ function TP.AutoSell:Init()
     end
 
     self.merchantOpen = false
+    self.apiErrorLogged = false
     self.state = {
         active = false,
         phase = "idle", -- idle | selling | retrying | waiting
+        generation = 0,
+        restartRequested = false,
         queue = {},
         index = 1,
         ticker = nil,
         retryTimer = nil,
         waitTicker = nil,
+        startedAt = 0,
         startMoney = 0,
         lastMoney = 0,
         waitStartedAt = 0,
         lastMoneyChangeAt = 0,
         moneyChangedAfterDone = false,
         attemptedItems = 0,
+        actionCount = 0,
         lockRetries = 0,
         passCount = 0,
         stallCount = 0,
@@ -130,6 +147,7 @@ function TP.AutoSell:Init()
 
     self.last = {
         attemptedItems = 0,
+        actionCount = 0,
         gainedCopper = 0,
         passCount = 0,
         completionReason = "none",
@@ -138,6 +156,10 @@ end
 
 function TP.AutoSell:_CancelWorkers()
     local state = self.state
+    if not state then
+        return
+    end
+
     if state.ticker then
         state.ticker:Cancel()
         state.ticker = nil
@@ -154,18 +176,27 @@ end
 
 function TP.AutoSell:_ResetState()
     local state = self.state
+    if not state then
+        return
+    end
+
+    local generation = (state.generation or 0) + 1
     self:_CancelWorkers()
 
     state.active = false
     state.phase = "idle"
+    state.generation = generation
+    state.restartRequested = false
     state.queue = {}
     state.index = 1
+    state.startedAt = 0
     state.startMoney = 0
     state.lastMoney = 0
     state.waitStartedAt = 0
     state.lastMoneyChangeAt = 0
     state.moneyChangedAfterDone = false
     state.attemptedItems = 0
+    state.actionCount = 0
     state.lockRetries = 0
     state.passCount = 0
     state.stallCount = 0
@@ -176,10 +207,22 @@ function TP.AutoSell:_ResetState()
     state.loggedNoValue = false
 end
 
+function TP.AutoSell:_ResetAndMaybeRestart(restartRequested)
+    self:_ResetState()
+
+    if restartRequested
+        and self.merchantOpen
+        and TP.Config:Get("enabled")
+    then
+        self:_StartSession()
+    end
+end
+
 function TP.AutoSell:_BuildQueue()
     local queue = {}
     local unknownItems = 0
     local skippedNoValue = 0
+    local requestedItemData = {}
 
     for bag = GetFirstBagIndex(), GetLastBagIndex() do
         local numSlots = GetNumSlots(bag)
@@ -187,11 +230,17 @@ function TP.AutoSell:_BuildQueue()
             for slot = 1, numSlots do
                 local info = GetContainerItemInfo(bag, slot)
                 if info and info.itemID then
-                    if info.quality == nil then
+                    local needsData = info.quality == nil
+                        or (info.quality == POOR_QUALITY and info.hasNoValue == nil)
+
+                    if needsData then
                         unknownItems = unknownItems + 1
-                        RequestItemData(info.itemID)
+                        if not requestedItemData[info.itemID] then
+                            requestedItemData[info.itemID] = true
+                            RequestItemData(info.itemID)
+                        end
                     elseif info.quality == POOR_QUALITY then
-                        if info.hasNoValue then
+                        if info.hasNoValue == true then
                             skippedNoValue = skippedNoValue + 1
                         elseif IsSellablePoor(info) then
                             queue[#queue + 1] = {
@@ -227,10 +276,11 @@ end
 
 function TP.AutoSell:_Finalize(reason)
     local state = self.state
-    if not state.active then
+    if not state or not state.active then
         return
     end
 
+    local restartRequested = state.restartRequested
     local delta = CurrentMoney(state.startMoney) - state.startMoney
 
     if delta < 0 and TP.Logger:IsDebug() then
@@ -240,34 +290,46 @@ function TP.AutoSell:_Finalize(reason)
     end
 
     self.last.attemptedItems = state.attemptedItems
+    self.last.actionCount = state.actionCount
     self.last.gainedCopper = delta
     self.last.passCount = state.passCount
     self.last.completionReason = reason or "unknown"
 
-    if TP.Config:Get("printSummary") and state.attemptedItems > 0 then
+    if TP.Config:Get("printSummary")
+        and state.attemptedItems > 0
+        and delta ~= 0
+    then
         local amount = TP.Format:FormatAmount(delta)
         local comment = PickHumorLine(delta)
         DEFAULT_CHAT_FRAME:AddMessage(
             "TrashPanda " .. amount .. ". |cffffd100" .. comment .. "|r"
         )
+    elseif delta == 0 and state.attemptedItems > 0 and TP.Logger:IsDebug() then
+        TP.Logger:Debug("No money change was observed after attempted junk sales.")
     end
 
     if TP.Logger:IsDebug() then
         TP.Logger:Debug((
-            "Finalize: attempted=%d delta=%d passes=%d reason=%s"
+            "Finalize: attempted=%d actions=%d delta=%d passes=%d reason=%s restart=%s"
         ):format(
             state.attemptedItems,
+            state.actionCount,
             delta,
             state.passCount,
-            reason or "unknown"
+            reason or "unknown",
+            tostring(restartRequested)
         ))
     end
 
-    self:_ResetState()
+    self:_ResetAndMaybeRestart(restartRequested)
 end
 
 function TP.AutoSell:_StartWaitingForMoney(reason)
     local state = self.state
+    if not state or not state.active then
+        return
+    end
+
     self:_CancelWorkers()
 
     if state.attemptedItems <= 0 then
@@ -276,7 +338,14 @@ function TP.AutoSell:_StartWaitingForMoney(reason)
                 "Autosell ended without attempts: unknown=%d noValue=%d reason=%s"
             ):format(state.unknownItems, state.skippedNoValue, reason or "unknown"))
         end
-        self:_ResetState()
+
+        local restartRequested = state.restartRequested
+        self.last.attemptedItems = 0
+        self.last.actionCount = state.actionCount
+        self.last.gainedCopper = 0
+        self.last.passCount = state.passCount
+        self.last.completionReason = reason or "no-attempts"
+        self:_ResetAndMaybeRestart(restartRequested)
         return
     end
 
@@ -286,7 +355,15 @@ function TP.AutoSell:_StartWaitingForMoney(reason)
     state.lastMoneyChangeAt = state.waitStartedAt
     state.moneyChangedAfterDone = state.lastMoney ~= state.startMoney
 
+    local generation = state.generation
     state.waitTicker = C_Timer.NewTicker(WAIT_TICK_SECONDS, function()
+        if not state.active
+            or state.generation ~= generation
+            or state.phase ~= "waiting"
+        then
+            return
+        end
+
         local now = Now()
         local money = CurrentMoney(state.lastMoney)
         if money ~= state.lastMoney then
@@ -303,21 +380,56 @@ function TP.AutoSell:_StartWaitingForMoney(reason)
             return
         end
 
+        if not state.moneyChangedAfterDone and waited >= WAIT_NO_CHANGE_SECONDS then
+            self:_Finalize((reason or "complete") .. "-no-money")
+            return
+        end
+
         if waited >= WAIT_MAX_SECONDS then
-            self:_Finalize("money-timeout")
+            self:_Finalize((reason or "complete") .. "-timeout")
         end
     end)
 end
 
+function TP.AutoSell:_GetLimitReason()
+    local state = self.state
+    if state.actionCount >= MAX_ACTIONS then
+        return "action-cap"
+    end
+
+    if state.startedAt > 0
+        and Now() - state.startedAt >= MAX_SESSION_SECONDS
+    then
+        return "session-timeout"
+    end
+
+    return nil
+end
+
 function TP.AutoSell:_ScheduleNextPass()
     local state = self.state
+    if not state or not state.active then
+        return
+    end
+
     if state.ticker then
         state.ticker:Cancel()
         state.ticker = nil
     end
 
+    if not TP.Config:Get("enabled") then
+        self:_StartWaitingForMoney("disabled")
+        return
+    end
+
     if not self.merchantOpen then
         self:_StartWaitingForMoney("merchant-closed")
+        return
+    end
+
+    local limitReason = self:_GetLimitReason()
+    if limitReason then
+        self:_StartWaitingForMoney(limitReason)
         return
     end
 
@@ -327,7 +439,15 @@ function TP.AutoSell:_ScheduleNextPass()
     end
 
     local delay = state.retryDelay
+    local generation = state.generation
     state.retryTimer = C_Timer.NewTimer(delay, function()
+        if not state.active
+            or state.generation ~= generation
+            or state.phase ~= "retrying"
+        then
+            return
+        end
+
         state.retryTimer = nil
         self:_BeginPass()
     end)
@@ -335,12 +455,23 @@ end
 
 function TP.AutoSell:_BeginPass()
     local state = self.state
-    if not state.active then
+    if not state or not state.active then
+        return
+    end
+
+    if not TP.Config:Get("enabled") then
+        self:_StartWaitingForMoney("disabled")
         return
     end
 
     if not self.merchantOpen then
         self:_StartWaitingForMoney("merchant-closed")
+        return
+    end
+
+    local limitReason = self:_GetLimitReason()
+    if limitReason then
+        self:_StartWaitingForMoney(limitReason)
         return
     end
 
@@ -363,10 +494,7 @@ function TP.AutoSell:_BeginPass()
     end
 
     if state.lastRemaining ~= nil then
-        if remaining < state.lastRemaining then
-            state.stallCount = 0
-            state.retryDelay = RETRY_BASE_SECONDS
-        elseif remaining > state.lastRemaining then
+        if remaining ~= state.lastRemaining then
             state.stallCount = 0
             state.retryDelay = RETRY_BASE_SECONDS
         else
@@ -421,19 +549,36 @@ function TP.AutoSell:_BeginPass()
         ):format(state.passCount, #queue, unknownItems, skippedNoValue))
     end
 
+    local generation = state.generation
     state.ticker = C_Timer.NewTicker(SELL_TICK_SECONDS, function()
-        self:_Tick()
+        if state.active
+            and state.generation == generation
+            and state.phase == "selling"
+        then
+            self:_Tick()
+        end
     end)
 end
 
 function TP.AutoSell:_Tick()
     local state = self.state
-    if not state.active then
+    if not state or not state.active or state.phase ~= "selling" then
+        return
+    end
+
+    if not TP.Config:Get("enabled") then
+        self:_StartWaitingForMoney("disabled")
         return
     end
 
     if not self.merchantOpen then
         self:_StartWaitingForMoney("merchant-closed")
+        return
+    end
+
+    local limitReason = self:_GetLimitReason()
+    if limitReason then
+        self:_StartWaitingForMoney(limitReason)
         return
     end
 
@@ -448,6 +593,13 @@ function TP.AutoSell:_Tick()
         or info.itemID ~= entry.itemID
         or not IsSellablePoor(info)
     then
+        if info
+            and info.itemID == entry.itemID
+            and (info.quality == nil or info.hasNoValue == nil)
+        then
+            RequestItemData(info.itemID)
+        end
+
         -- The slot is a mutable location. A changed/empty/unsafe slot is never used.
         state.index = state.index + 1
         state.lockRetries = 0
@@ -469,51 +621,116 @@ function TP.AutoSell:_Tick()
     end
 
     UseContainerItem(entry.bag, entry.slot)
-    state.attemptedItems = state.attemptedItems + (info.stackCount or 1)
+    local stackCount = type(info.stackCount) == "number" and info.stackCount or 1
+    state.attemptedItems = state.attemptedItems + stackCount
+    state.actionCount = state.actionCount + 1
     state.index = state.index + 1
     state.lockRetries = 0
+end
+
+function TP.AutoSell:_StartSession()
+    local state = self.state
+    if not state
+        or state.active
+        or not self.merchantOpen
+        or not TP.Config:Get("enabled")
+    then
+        return false
+    end
+
+    if not HasRequiredAPIs() then
+        if not self.apiErrorLogged then
+            self.apiErrorLogged = true
+            TP.Logger:Error("Missing container/timer API required for safe junk selling.")
+        end
+        return false
+    end
+
+    self:_ResetState()
+    state = self.state
+    state.active = true
+    state.phase = "retrying"
+    state.startedAt = Now()
+    state.startMoney = CurrentMoney(0)
+    state.lastMoney = state.startMoney
+
+    self:_BeginPass()
+    return true
+end
+
+function TP.AutoSell:OnEnabledChanged(enabled)
+    local state = self.state
+    if not state then
+        return
+    end
+
+    if not enabled then
+        state.restartRequested = false
+        if state.active and state.phase ~= "waiting" then
+            self:_StartWaitingForMoney("disabled")
+        end
+        return
+    end
+
+    if not self.merchantOpen then
+        return
+    end
+
+    if state.active then
+        if state.phase == "waiting" then
+            state.restartRequested = true
+        end
+        return
+    end
+
+    self:_StartSession()
 end
 
 function TP.AutoSell:OnMerchantShow()
     self.merchantOpen = true
 
-    if not TP.Config:Get("enabled") then
+    local state = self.state
+    if not state or not TP.Config:Get("enabled") then
         return
     end
 
-    if TP.Config:Get("bypassShift") and IsShiftKeyDown() then
+    if TP.Config:Get("bypassShift")
+        and type(IsShiftKeyDown) == "function"
+        and IsShiftKeyDown()
+    then
         if TP.Logger:IsDebug() then
             TP.Logger:Debug("Shift held: autosell skipped.")
         end
         return
     end
 
-    if not (GetNumSlots and GetContainerItemInfo and UseContainerItem) then
-        TP.Logger:Error("Missing C_Container API required for safe junk selling.")
-        return
-    end
-
-    if self.state.active then
-        if TP.Logger:IsDebug() then
-            TP.Logger:Debug("Autosell already active; ignore MERCHANT_SHOW.")
+    if state.active then
+        if state.phase == "waiting" then
+            state.restartRequested = true
+            if TP.Logger:IsDebug() then
+                TP.Logger:Debug("Merchant reopened during reconciliation; queued a fresh session.")
+            end
+        elseif TP.Logger:IsDebug() then
+            TP.Logger:Debug("Autosell already active; ignore duplicate MERCHANT_SHOW.")
         end
         return
     end
 
-    local state = self.state
-    state.active = true
-    state.phase = "retrying"
-    state.startMoney = CurrentMoney(0)
-    state.lastMoney = state.startMoney
-
-    self:_BeginPass()
+    self:_StartSession()
 end
 
 function TP.AutoSell:OnMerchantClosed()
     self.merchantOpen = false
 
     local state = self.state
-    if not state or not state.active or state.phase == "waiting" then
+    if not state then
+        return
+    end
+
+    -- A previously queued reopen is no longer current after another close.
+    state.restartRequested = false
+
+    if not state.active or state.phase == "waiting" then
         return
     end
 
