@@ -31,10 +31,20 @@ jobs:
             test -f "$file"
             luac5.1 -p "$file"
           done
-          luac5.1 -p tests/run.lua
+
+          mapfile -t test_files < <(find tests -maxdepth 1 -type f -name '*.lua' -print | sort)
+          test "${#test_files[@]}" -gt 0
+          for file in "${test_files[@]}"; do
+            luac5.1 -p "$file"
+          done
 
       - name: Run deterministic WoW stub tests
-        run: lua5.1 tests/run.lua
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r file; do
+            lua5.1 "$file"
+          done < <(find tests -maxdepth 1 -type f -name '*.lua' -print | sort)
 
       - name: Build clean addon archive
         id: package
