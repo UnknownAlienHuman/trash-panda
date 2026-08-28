@@ -1,11 +1,12 @@
 # Release verification — 0.3.1
 
-Static migration and deterministic regression coverage are complete. Runtime checks must be performed in the Retail 12.1.0 client and recorded in [GitHub issue #1](https://github.com/UnknownAlienHuman/trash-panda/issues/1).
+Static migration and deterministic local regression coverage are complete. Actual Lua 5.1 CI execution is blocked in [GitHub issue #4](https://github.com/UnknownAlienHuman/trash-panda/issues/4). Runtime checks must be performed in the Retail 12.1.0 client and recorded in [GitHub issue #1](https://github.com/UnknownAlienHuman/trash-panda/issues/1).
 
 ## Offline / CI
 
-- [x] Parse every TOC-loaded Lua file as Lua 5.1-compatible syntax.
+- [x] Inspect every TOC-loaded Lua file for Lua 5.1-compatible syntax and parse it with the available Lua-compatible toolchain.
 - [x] Validate TOC paths, Interface `120100`, and version `0.3.1`.
+- [x] Run the deterministic merchant/loot harness: 15/15 scenarios pass under the available Lua 5.3-compatible interpreter.
 - [x] Verify point-of-use bag/slot identity, quality, value, and lock checks.
 - [x] Verify bounded pass, stall, action, sale-phase, lock, retry, and money workers.
 - [x] Verify transaction-generation guards on ticker, retry timer, and money ticker.
@@ -17,8 +18,10 @@ Static migration and deterministic regression coverage are complete. Runtime che
 - [x] Verify SavedVariables schema and corrupt-value normalization.
 - [x] Verify no-value filtering, stale-slot replacement, and item-data retry.
 - [x] Verify Faster Looting autoloot true/false and missing-API fail-closed paths.
-- [x] Build and inspect a clean runtime-only ZIP through `scripts/package.sh`.
+- [x] Exercise `scripts/package.sh` runtime-only inclusion/exclusion behavior.
 - [x] Add tag/version-gated GitHub release automation.
+- [ ] Enable or unblock GitHub Actions for this repository and obtain a green `luac5.1` / `lua5.1` run ([issue #4](https://github.com/UnknownAlienHuman/trash-panda/issues/4)).
+- [ ] Inspect the CI-built `TrashPanda-0.3.1.zip` artifact against the exact committed source blobs.
 
 ## In client
 
