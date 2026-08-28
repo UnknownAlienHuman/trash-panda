@@ -127,7 +127,7 @@ function TP.AutoSell:Init()
         ticker = nil,
         retryTimer = nil,
         waitTicker = nil,
-        startedAt = 0,
+        startedAt = nil,
         startMoney = 0,
         lastMoney = 0,
         waitStartedAt = 0,
@@ -189,7 +189,7 @@ function TP.AutoSell:_ResetState()
     state.restartRequested = false
     state.queue = {}
     state.index = 1
-    state.startedAt = 0
+    state.startedAt = nil
     state.startMoney = 0
     state.lastMoney = 0
     state.waitStartedAt = 0
@@ -397,7 +397,8 @@ function TP.AutoSell:_GetLimitReason()
         return "action-cap"
     end
 
-    if state.startedAt > 0
+    -- GetTime() may legitimately be zero during the first client frame.
+    if state.startedAt ~= nil
         and Now() - state.startedAt >= MAX_SESSION_SECONDS
     then
         return "session-timeout"
