@@ -69,7 +69,9 @@ Enable the addon and reload the UI.
 
 ## Verification
 
-The repository CI parses every TOC-loaded file with Lua 5.1, runs the deterministic merchant/loot harness, and builds a clean archive containing only runtime addon files plus the license. Runtime validation in the live WoW client remains tracked in [issue #1](https://github.com/UnknownAlienHuman/trash-panda/issues/1).
+The committed CI workflow is designed to parse every TOC-loaded file with `luac5.1`, run the deterministic merchant/loot harness with `lua5.1`, and build a runtime-only addon archive. The local deterministic harness currently passes all 15 scenarios under the available Lua 5.3-compatible interpreter, and the packager's inclusion/exclusion behavior has been exercised locally.
+
+GitHub has not created a workflow run for this repository, so an actual Lua 5.1 CI pass and CI-built ZIP artifact are **not yet verified**. Repository Actions enablement is tracked in [issue #4](https://github.com/UnknownAlienHuman/trash-panda/issues/4). Runtime validation in the live WoW client remains tracked separately in [issue #1](https://github.com/UnknownAlienHuman/trash-panda/issues/1).
 
 ## Development
 
