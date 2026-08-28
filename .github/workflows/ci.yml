@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Lua 5.1 and packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes lua5.1 zip unzip
+
+      - name: Validate TOC and Lua 5.1 syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t addon_files < <(awk 'NF && $1 !~ /^##/' TrashPanda.toc)
+          test "${#addon_files[@]}" -gt 0
+          for file in "${addon_files[@]}"; do
+            test -f "$file"
+            luac5.1 -p "$file"
+          done
+          luac5.1 -p tests/run.lua
+
+      - name: Run deterministic WoW stub tests
+        run: lua5.1 tests/run.lua
+
+      - name: Build clean addon archive
+        id: package
+        shell: bash
+        run: |
+          archive="$(bash scripts/package.sh "$RUNNER_TEMP/dist")"
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+          unzip -t "$archive"
+          unzip -Z1 "$archive"
+
+      - name: Upload addon archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: TrashPanda-package
+          path: ${{ steps.package.outputs.archive }}
+          if-no-files-found: error
