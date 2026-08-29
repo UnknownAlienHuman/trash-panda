@@ -1,9 +1,7 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -11,42 +9,80 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - name: Check out tagged source
+      - name: Check out release source
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install Lua 5.1 and packaging tools
         run: |
           sudo apt-get update
           sudo apt-get install --yes lua5.1 zip unzip
 
-      - name: Validate tag, source, and tests
+      - name: Validate source and complete regression suite
         shell: bash
         run: |
           set -euo pipefail
-          version="$(awk -F': *' '/^## Version:/ { print $2; exit }' TrashPanda.toc)"
-          test "v${version}" = "${GITHUB_REF_NAME}"
           mapfile -t addon_files < <(awk 'NF && $1 !~ /^##/' TrashPanda.toc)
+          test "${#addon_files[@]}" -gt 0
           for file in "${addon_files[@]}"; do
             test -f "$file"
             luac5.1 -p "$file"
           done
-          luac5.1 -p tests/run.lua
-          lua5.1 tests/run.lua
 
-      - name: Build clean addon archive
+          mapfile -t test_files < <(find tests -maxdepth 1 -type f -name '*.lua' -print | sort)
+          test "${#test_files[@]}" -gt 0
+          for file in "${test_files[@]}"; do
+            luac5.1 -p "$file"
+            lua5.1 "$file"
+          done
+
+      - name: Build and inspect clean addon archive
         id: package
         shell: bash
         run: |
+          set -euo pipefail
+          version="$(awk -F': *' '/^## Version:/ { print $2; exit }' TrashPanda.toc)"
+          test -n "$version"
           archive="$(bash scripts/package.sh "$RUNNER_TEMP/dist")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
           echo "archive=$archive" >> "$GITHUB_OUTPUT"
           unzip -t "$archive"
+          if unzip -Z1 "$archive" | grep -Eq '(^|/)(AGENT_GUIDE|ARCHITECTURE|CODE_GRAPH|CODE_INDEX|todo)\.md$|(^|/)(tests|scripts|\.github)/'; then
+            echo "Release archive contains development-only files" >&2
+            exit 1
+          fi
 
-      - name: Publish GitHub release
+      - name: Create release tag when absent
+        env:
+          TAG: ${{ steps.package.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists"
+          else
+            git tag "$TAG" "$GITHUB_SHA"
+            git push origin "refs/tags/$TAG"
+          fi
+
+      - name: Publish GitHub release when absent
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.package.outputs.tag }}
+          VERSION: ${{ steps.package.outputs.version }}
+          ARCHIVE: ${{ steps.package.outputs.archive }}
+        shell: bash
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            "${{ steps.package.outputs.archive }}" \
-            --title "TrashPanda ${GITHUB_REF_NAME#v}" \
-            --generate-notes
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists"
+          else
+            gh release create "$TAG" "$ARCHIVE" \
+              --target "$GITHUB_SHA" \
+              --title "TrashPanda $VERSION" \
+              --generate-notes
+          fi
