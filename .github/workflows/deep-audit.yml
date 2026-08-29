@@ -1,24 +1,7 @@
 name: Deep Audit
 
 on:
-  pull_request:
-    paths:
-      - "Feature/AutoSell.lua"
-      - "Core/Locale.lua"
-      - "Util/Format.lua"
-      - "tests/time_origin.lua"
-      - "tests/module_contracts.lua"
-      - ".github/workflows/deep-audit.yml"
-  push:
-    branches:
-      - main
-    paths:
-      - "Feature/AutoSell.lua"
-      - "Core/Locale.lua"
-      - "Util/Format.lua"
-      - "tests/time_origin.lua"
-      - "tests/module_contracts.lua"
-      - ".github/workflows/deep-audit.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
